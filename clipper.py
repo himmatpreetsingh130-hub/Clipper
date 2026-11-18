@@ -15,6 +15,14 @@ from chat_downloader import ChatDownloader
 FUNNY = r"lmao|lmfao|lol+|haha+|hehe+|kekw|omegalul|lul|bruh|dead|dying|💀|😂|🤣|😭"
 
 
+def normalize_url(u):
+    """Turn /live/ID, /shorts/ID, youtu.be/ID links into watch?v=ID."""
+    m = re.search(r"(?:youtube\.com/(?:live|shorts|embed)/|youtu\.be/)([\w-]{11})", u)
+    if m:
+        return "https://www.youtube.com/watch?v=" + m.group(1)
+    return u
+
+
 def make_dl():
     if os.path.exists("cookies.txt"):
         return ChatDownloader(cookies="cookies.txt")
@@ -123,6 +131,8 @@ def main():
     ap.add_argument("--chat-timeout", type=int, default=None)
     ap.add_argument("--out", default="out")
     a = ap.parse_args()
+    a.url = normalize_url(a.url)
+    print("URL:", a.url)
 
     out = Path(a.out)
     out.mkdir(exist_ok=True)
@@ -185,3 +195,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
