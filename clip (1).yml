@@ -1,0 +1,79 @@
+name: Auto Clip Cutter
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "YouTube stream URL"
+        required: true
+      live:
+        description: "Stream is running NOW (record + cut)"
+        type: boolean
+        default: true
+      minutes:
+        description: "Live only: how many minutes to record"
+        default: "30"
+      top:
+        description: "Max number of clips"
+        default: "5"
+      before:
+        description: "Seconds before funny moment"
+        default: "15"
+      after:
+        description: "Seconds after funny moment"
+        default: "20"
+      min_score:
+        description: "Peak sensitivity (lower = more clips)"
+        default: "8"
+      keywords:
+        description: "Extra funny words, comma separated (optional)"
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install -U yt-dlp "git+https://github.com/xenova/chat-downloader.git"
+
+      - name: Optional YouTube cookies (fixes "sign in" blocks)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ -n "$YT_COOKIES" ]; then printf '%s' "$YT_COOKIES" > cookies.txt; fi
+
+      - name: Cut clips
+        env:
+          URL: ${{ inputs.url }}
+          LIVE: ${{ inputs.live }}
+          MINUTES: ${{ inputs.minutes }}
+          TOP: ${{ inputs.top }}
+          BEFORE: ${{ inputs.before }}
+          AFTER: ${{ inputs.after }}
+          MIN_SCORE: ${{ inputs.min_score }}
+          KEYWORDS: ${{ inputs.keywords }}
+        run: |
+          FLAGS=""
+          if [ "$LIVE" = "true" ]; then FLAGS="--live --minutes $MINUTES"; fi
+          python clipper.py "$URL" $FLAGS \
+            --top "$TOP" --before "$BEFORE" --after "$AFTER" \
+            --min-score "$MIN_SCORE" --keywords "$KEYWORDS"
+
+      - name: Publish clips as a Release (download on phone)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ inputs.url }}
+        run: |
+          gh release create "clips-${{ github.run_number }}" out/*.mp4 out/clips.txt \
+            --title "Clips #${{ github.run_number }}" \
+            --notes "Source: $URL"
